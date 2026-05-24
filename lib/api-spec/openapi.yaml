@@ -504,8 +504,9 @@ components:
       properties:
         idText:
           type: string
-      required:
-        - idText
+        idImage:
+          type: string
+          description: Base64-encoded image of the ID card (JPEG or PNG)
 
     ExtractedPatient:
       type: object

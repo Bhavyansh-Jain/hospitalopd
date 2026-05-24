@@ -158,7 +158,8 @@ export const GetPatientVisitsResponse = zod.array(GetPatientVisitsResponseItem)
  * @summary Extract patient info from ID text using AI
  */
 export const ExtractPatientFromIdBody = zod.object({
-  "idText": zod.string()
+  "idText": zod.string().optional(),
+  "idImage": zod.string().optional().describe('Base64-encoded image of the ID card (JPEG or PNG)')
 })
 
 export const ExtractPatientFromIdResponse = zod.object({

@@ -64,7 +64,9 @@ export interface VisitWithPatient {
 }
 
 export interface IdTextInput {
-  idText: string;
+  idText?: string;
+  /** Base64-encoded image of the ID card (JPEG or PNG) */
+  idImage?: string;
 }
 
 export interface ExtractedPatient {

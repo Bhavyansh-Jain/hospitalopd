@@ -24,12 +24,23 @@ import {
 
 const router: IRouter = Router();
 
+const EXTRACTION_INSTRUCTION = `You are a hospital ID extraction assistant. Extract patient details and return ONLY valid JSON with these exact fields:
+{
+  "name": "full name as string",
+  "age": age as integer or null,
+  "gender": "Male" or "Female" or "Other" or null,
+  "phone": "phone number as string or null",
+  "insuranceId": "insurance ID as string or null"
+}
+If a field cannot be determined, use null. Return only the JSON object, no explanation.`;
+
 /**
  * POST /ai/extract-patient
  *
- * Google tech: Gemini API (gemini-3-flash-preview)
- * Accepts raw ID card text, calls Gemini to extract structured patient fields,
- * and returns them as JSON.
+ * Google tech: Gemini API (gemini-3-flash-preview) — supports both modes:
+ *  - Vision mode: receives a base64 JPEG image of the ID card (idImage),
+ *    Gemini reads text directly from the photo using its vision capability.
+ *  - Text mode: receives pasted ID card text (idText), Gemini extracts fields.
  */
 router.post("/ai/extract-patient", async (req, res): Promise<void> => {
   const parsed = ExtractPatientFromIdBody.safeParse(req.body);
@@ -38,32 +49,30 @@ router.post("/ai/extract-patient", async (req, res): Promise<void> => {
     return;
   }
 
-  const { idText } = parsed.data;
+  const { idText, idImage } = parsed.data;
 
-  // Google Gemini API call — extract patient details from ID card text
+  if (!idText && !idImage) {
+    res.status(400).json({ error: "Provide either idText or idImage." });
+    return;
+  }
+
+  // Build Gemini parts — image takes priority over text when both are present
+  const parts = idImage
+    ? [
+        // Google Gemini Vision — reads ID fields directly from the photo
+        { inlineData: { mimeType: "image/jpeg", data: idImage } },
+        { text: EXTRACTION_INSTRUCTION },
+      ]
+    : [
+        {
+          text: `${EXTRACTION_INSTRUCTION}\n\nID text:\n${idText}`,
+        },
+      ];
+
+  // Google Gemini API call — extract patient details (vision or text mode)
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
-    contents: [
-      {
-        role: "user",
-        parts: [
-          {
-            text: `You are a hospital ID extraction assistant. Extract patient details from the ID card text below and return ONLY valid JSON with these exact fields:
-{
-  "name": "full name as string",
-  "age": age as integer or null,
-  "gender": "Male" or "Female" or "Other" or null,
-  "phone": "phone number as string or null",
-  "insuranceId": "insurance ID as string or null"
-}
-If a field cannot be determined from the text, use null. Return only the JSON object, no explanation.
-
-ID text:
-${idText}`,
-          },
-        ],
-      },
-    ],
+    contents: [{ role: "user", parts }],
     config: { maxOutputTokens: 512, responseMimeType: "application/json" },
   });
 
@@ -73,7 +82,7 @@ ${idText}`,
     const extracted = JSON.parse(cleaned);
     res.json(ExtractPatientFromIdResponse.parse(extracted));
   } catch {
-    req.log.warn("Failed to parse Gemini extraction response");
+    req.log.warn({ mode: idImage ? "vision" : "text" }, "Failed to parse Gemini extraction response");
     res.json(
       ExtractPatientFromIdResponse.parse({
         name: "",
