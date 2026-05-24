@@ -86,6 +86,15 @@ export default function ScanId() {
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
+        
+        // Wait for video metadata to be loaded before enabling capture
+        await new Promise<void>((resolve) => {
+          const handleLoadedMetadata = () => {
+            videoRef.current?.removeEventListener("loadedmetadata", handleLoadedMetadata);
+            resolve();
+          };
+          videoRef.current?.addEventListener("loadedmetadata", handleLoadedMetadata);
+        });
       }
       setCameraActive(true);
     } catch (err) {
@@ -106,13 +115,24 @@ export default function ScanId() {
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (!video || !canvas) return;
+    
+    // Guard against zero-size video dimensions
+    if (video.videoWidth === 0 || video.videoHeight === 0) {
+      toast({ 
+        title: "Camera Loading", 
+        description: "Please wait for the camera to fully load before capturing.", 
+        variant: "destructive" 
+      });
+      return;
+    }
+    
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     canvas.getContext("2d")?.drawImage(video, 0, 0);
     const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
     setCapturedImage(dataUrl);
     stopCamera();
-  }, [stopCamera]);
+  }, [stopCamera, toast]);
 
   const retakePhoto = useCallback(() => {
     setCapturedImage(null);
