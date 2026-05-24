@@ -2,8 +2,8 @@
  * AI Routes — powered by Google Gemini API (via Replit AI Integrations)
  *
  * Google tech used here:
- *  - gemini-3-flash-preview for ID extraction (POST /ai/extract-patient)
- *  - gemini-3-flash-preview for insurance verification (POST /ai/check-insurance)
+ *  - gemini-1.5-flash for ID extraction (POST /ai/extract-patient)
+ *  - gemini-1.5-flash for insurance verification (POST /ai/check-insurance)
  *
  * The Gemini client is initialized from @workspace/integrations-gemini-ai using
  * the AI_INTEGRATIONS_GEMINI_BASE_URL and AI_INTEGRATIONS_GEMINI_API_KEY env vars
@@ -37,7 +37,7 @@ If a field cannot be determined, use null. Return only the JSON object, no expla
 /**
  * POST /ai/extract-patient
  *
- * Google tech: Gemini API (gemini-3-flash-preview) — supports both modes:
+ * Google tech: Gemini API (gemini-1.5-flash) — supports both modes:
  *  - Vision mode: receives a base64 JPEG image of the ID card (idImage),
  *    Gemini reads text directly from the photo using its vision capability.
  *  - Text mode: receives pasted ID card text (idText), Gemini extracts fields.
@@ -56,12 +56,13 @@ router.post("/ai/extract-patient", async (req, res): Promise<void> => {
     return;
   }
 
-  // Build Gemini parts — image takes priority over text when both are present
+  // Build Gemini parts — instruction first, then image (image takes priority over text when both are present)
   const parts = idImage
     ? [
+        // Instruction BEFORE image so Gemini understands the task before seeing the photo
+        { text: EXTRACTION_INSTRUCTION },
         // Google Gemini Vision — reads ID fields directly from the photo
         { inlineData: { mimeType: "image/jpeg", data: idImage } },
-        { text: EXTRACTION_INSTRUCTION },
       ]
     : [
         {
@@ -69,36 +70,32 @@ router.post("/ai/extract-patient", async (req, res): Promise<void> => {
         },
       ];
 
-  // Google Gemini API call — extract patient details (vision or text mode)
-  const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
-    contents: [{ role: "user", parts }],
-    config: { maxOutputTokens: 512, responseMimeType: "application/json" },
-  });
-
   try {
+    // Google Gemini API call — extract patient details (vision or text mode)
+    const response = await ai.models.generateContent({
+      model: "gemini-1.5-flash",
+      contents: [{ role: "user", parts }],
+      config: { maxOutputTokens: 512, responseMimeType: "application/json" },
+    });
+
     const text = response.text ?? "{}";
     const cleaned = text.replace(/```json\n?|\n?```/g, "").trim();
     const extracted = JSON.parse(cleaned);
     res.json(ExtractPatientFromIdResponse.parse(extracted));
-  } catch {
-    req.log.warn({ mode: idImage ? "vision" : "text" }, "Failed to parse Gemini extraction response");
-    res.json(
-      ExtractPatientFromIdResponse.parse({
-        name: "",
-        age: null,
-        gender: null,
-        phone: null,
-        insuranceId: null,
-      }),
-    );
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    req.log.error({ mode: idImage ? "vision" : "text", error: errorMessage }, "Failed to extract from ID");
+    res.status(500).json({
+      error: "Failed to extract patient details. Please try again.",
+      details: errorMessage,
+    });
   }
 });
 
 /**
  * POST /ai/check-insurance
  *
- * Google tech: Gemini API (gemini-3-flash-preview)
+ * Google tech: Gemini API (gemini-1.5-flash)
  * Accepts an insurance ID and uses Gemini to determine active/inactive/unknown status.
  */
 router.post("/ai/check-insurance", async (req, res): Promise<void> => {
@@ -110,15 +107,16 @@ router.post("/ai/check-insurance", async (req, res): Promise<void> => {
 
   const { insuranceId } = parsed.data;
 
-  // Google Gemini API call — verify insurance status
-  const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
-    contents: [
-      {
-        role: "user",
-        parts: [
-          {
-            text: `You are an insurance verification assistant for a hospital OPD kiosk. Given an insurance ID, determine its status.
+  try {
+    // Google Gemini API call — verify insurance status
+    const response = await ai.models.generateContent({
+      model: "gemini-1.5-flash",
+      contents: [
+        {
+          role: "user",
+          parts: [
+            {
+              text: `You are an insurance verification assistant for a hospital OPD kiosk. Given an insurance ID, determine its status.
 Return ONLY valid JSON with these exact fields:
 {
   "status": "active" or "inactive" or "unknown",
@@ -131,14 +129,13 @@ Rules:
 - Anything else or unclear: status = "unknown"
 
 Insurance ID: ${insuranceId}`,
-          },
-        ],
-      },
-    ],
-    config: { maxOutputTokens: 256, responseMimeType: "application/json" },
-  });
+            },
+          ],
+        },
+      ],
+      config: { maxOutputTokens: 256, responseMimeType: "application/json" },
+    });
 
-  try {
     const text = response.text ?? "{}";
     const cleaned = text.replace(/```json\n?|\n?```/g, "").trim();
     const parsed2 = JSON.parse(cleaned);
@@ -149,15 +146,13 @@ Insurance ID: ${insuranceId}`,
         details: parsed2.details ?? "Unable to verify insurance status.",
       }),
     );
-  } catch {
-    req.log.warn("Failed to parse Gemini insurance check response");
-    res.json(
-      CheckInsuranceResponse.parse({
-        insuranceId,
-        status: "unknown",
-        details: "Unable to verify insurance status at this time.",
-      }),
-    );
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    req.log.error({ insuranceId, error: errorMessage }, "Failed to check insurance status");
+    res.status(500).json({
+      error: "Failed to verify insurance status. Please try again.",
+      details: errorMessage,
+    });
   }
 });
 
