@@ -1,7 +1,19 @@
+/**
+ * AI Routes — powered by Google Gemini API (via Replit AI Integrations)
+ *
+ * Google tech used here:
+ *  - gemini-3-flash-preview for ID extraction (POST /ai/extract-patient)
+ *  - gemini-3-flash-preview for insurance verification (POST /ai/check-insurance)
+ *
+ * The Gemini client is initialized from @workspace/integrations-gemini-ai using
+ * the AI_INTEGRATIONS_GEMINI_BASE_URL and AI_INTEGRATIONS_GEMINI_API_KEY env vars
+ * provisioned by Replit AI Integrations.
+ */
 import { Router, type IRouter } from "express";
 import { eq, sql } from "drizzle-orm";
 import { db, patientsTable, visitsTable } from "@workspace/db";
-import { openai } from "@workspace/integrations-openai-ai-server";
+// Google Gemini AI client — replaces all previous OpenAI usage in this file
+import { ai } from "@workspace/integrations-gemini-ai";
 import {
   ExtractPatientFromIdBody,
   ExtractPatientFromIdResponse,
@@ -12,6 +24,13 @@ import {
 
 const router: IRouter = Router();
 
+/**
+ * POST /ai/extract-patient
+ *
+ * Google tech: Gemini API (gemini-3-flash-preview)
+ * Accepts raw ID card text, calls Gemini to extract structured patient fields,
+ * and returns them as JSON.
+ */
 router.post("/ai/extract-patient", async (req, res): Promise<void> => {
   const parsed = ExtractPatientFromIdBody.safeParse(req.body);
   if (!parsed.success) {
@@ -21,13 +40,15 @@ router.post("/ai/extract-patient", async (req, res): Promise<void> => {
 
   const { idText } = parsed.data;
 
-  const completion = await openai.chat.completions.create({
-    model: "gpt-5.1",
-    max_completion_tokens: 512,
-    messages: [
+  // Google Gemini API call — extract patient details from ID card text
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: [
       {
-        role: "system",
-        content: `You are a hospital ID extraction assistant. Extract patient details from ID card text and return ONLY valid JSON with these exact fields:
+        role: "user",
+        parts: [
+          {
+            text: `You are a hospital ID extraction assistant. Extract patient details from the ID card text below and return ONLY valid JSON with these exact fields:
 {
   "name": "full name as string",
   "age": age as integer or null,
@@ -35,22 +56,24 @@ router.post("/ai/extract-patient", async (req, res): Promise<void> => {
   "phone": "phone number as string or null",
   "insuranceId": "insurance ID as string or null"
 }
-If a field cannot be determined from the text, use null. Always return only the JSON object, no explanation.`,
-      },
-      {
-        role: "user",
-        content: `Extract patient information from this ID text:\n\n${idText}`,
+If a field cannot be determined from the text, use null. Return only the JSON object, no explanation.
+
+ID text:
+${idText}`,
+          },
+        ],
       },
     ],
+    config: { maxOutputTokens: 512, responseMimeType: "application/json" },
   });
 
   try {
-    const content = completion.choices[0]?.message?.content ?? "{}";
-    const cleaned = content.replace(/```json\n?|\n?```/g, "").trim();
+    const text = response.text ?? "{}";
+    const cleaned = text.replace(/```json\n?|\n?```/g, "").trim();
     const extracted = JSON.parse(cleaned);
     res.json(ExtractPatientFromIdResponse.parse(extracted));
   } catch {
-    req.log.warn("Failed to parse AI extraction response");
+    req.log.warn("Failed to parse Gemini extraction response");
     res.json(
       ExtractPatientFromIdResponse.parse({
         name: "",
@@ -63,6 +86,12 @@ If a field cannot be determined from the text, use null. Always return only the 
   }
 });
 
+/**
+ * POST /ai/check-insurance
+ *
+ * Google tech: Gemini API (gemini-3-flash-preview)
+ * Accepts an insurance ID and uses Gemini to determine active/inactive/unknown status.
+ */
 router.post("/ai/check-insurance", async (req, res): Promise<void> => {
   const parsed = CheckInsuranceBody.safeParse(req.body);
   if (!parsed.success) {
@@ -72,13 +101,15 @@ router.post("/ai/check-insurance", async (req, res): Promise<void> => {
 
   const { insuranceId } = parsed.data;
 
-  const completion = await openai.chat.completions.create({
-    model: "gpt-5.1",
-    max_completion_tokens: 256,
-    messages: [
+  // Google Gemini API call — verify insurance status
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: [
       {
-        role: "system",
-        content: `You are an insurance verification assistant for a hospital OPD kiosk. Given an insurance ID, determine the status.
+        role: "user",
+        parts: [
+          {
+            text: `You are an insurance verification assistant for a hospital OPD kiosk. Given an insurance ID, determine its status.
 Return ONLY valid JSON with these exact fields:
 {
   "status": "active" or "inactive" or "unknown",
@@ -87,20 +118,20 @@ Return ONLY valid JSON with these exact fields:
 
 Rules:
 - IDs starting with "INS", "HLT", "MED" followed by numbers: status = "active"
-- IDs starting with "EXP", "CAN", "OLD": status = "inactive"  
+- IDs starting with "EXP", "CAN", "OLD": status = "inactive"
 - Anything else or unclear: status = "unknown"
-Always return only the JSON object.`,
-      },
-      {
-        role: "user",
-        content: `Check insurance status for ID: ${insuranceId}`,
+
+Insurance ID: ${insuranceId}`,
+          },
+        ],
       },
     ],
+    config: { maxOutputTokens: 256, responseMimeType: "application/json" },
   });
 
   try {
-    const content = completion.choices[0]?.message?.content ?? "{}";
-    const cleaned = content.replace(/```json\n?|\n?```/g, "").trim();
+    const text = response.text ?? "{}";
+    const cleaned = text.replace(/```json\n?|\n?```/g, "").trim();
     const parsed2 = JSON.parse(cleaned);
     res.json(
       CheckInsuranceResponse.parse({
@@ -110,7 +141,7 @@ Always return only the JSON object.`,
       }),
     );
   } catch {
-    req.log.warn("Failed to parse insurance check response");
+    req.log.warn("Failed to parse Gemini insurance check response");
     res.json(
       CheckInsuranceResponse.parse({
         insuranceId,
@@ -121,6 +152,11 @@ Always return only the JSON object.`,
   }
 });
 
+/**
+ * GET /ai/stats
+ *
+ * No AI call — pure DB aggregation for the dashboard stats panel.
+ */
 router.get("/ai/stats", async (_req, res): Promise<void> => {
   const totalPatientsResult = await db
     .select({ count: sql<number>`cast(count(*) as int)` })
