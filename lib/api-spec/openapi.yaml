@@ -3,13 +3,22 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Zero-Wait OPD Kiosk API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: patients
+    description: Patient management
+  - name: visits
+    description: Visit management
+  - name: ai
+    description: AI-powered features
+  - name: openai
+    description: OpenAI AI chat, image, and audio operations
+
 paths:
   /healthz:
     get:
@@ -24,6 +33,332 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /patients:
+    get:
+      operationId: listPatients
+      tags: [patients]
+      summary: List all patients
+      responses:
+        "200":
+          description: List of patients
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Patient"
+    post:
+      operationId: createPatient
+      tags: [patients]
+      summary: Create a new patient
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PatientInput"
+      responses:
+        "201":
+          description: Created patient
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Patient"
+
+  /patients/{id}:
+    get:
+      operationId: getPatient
+      tags: [patients]
+      summary: Get a patient by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Patient found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Patient"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /patients/search:
+    get:
+      operationId: searchPatients
+      tags: [patients]
+      summary: Search patients by name or phone
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Matching patients
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Patient"
+
+  /visits:
+    get:
+      operationId: listVisits
+      tags: [visits]
+      summary: List all visits
+      responses:
+        "200":
+          description: List of visits
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Visit"
+    post:
+      operationId: createVisit
+      tags: [visits]
+      summary: Create a new visit (save clinical data)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VisitInput"
+      responses:
+        "201":
+          description: Created visit with patient info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VisitWithPatient"
+
+  /visits/{id}:
+    get:
+      operationId: getVisit
+      tags: [visits]
+      summary: Get a visit by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Visit found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VisitWithPatient"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /visits/patient/{patientId}:
+    get:
+      operationId: getPatientVisits
+      tags: [visits]
+      summary: Get all visits for a patient
+      parameters:
+        - name: patientId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Patient visits
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Visit"
+
+  /ai/extract-patient:
+    post:
+      operationId: extractPatientFromId
+      tags: [ai]
+      summary: Extract patient info from ID text using AI
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IdTextInput"
+      responses:
+        "200":
+          description: Extracted patient data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExtractedPatient"
+
+  /ai/check-insurance:
+    post:
+      operationId: checkInsurance
+      tags: [ai]
+      summary: Check insurance status for a given insurance ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InsuranceCheckInput"
+      responses:
+        "200":
+          description: Insurance check result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InsuranceCheckResult"
+
+  /ai/stats:
+    get:
+      operationId: getKioskStats
+      tags: [ai]
+      summary: Get kiosk dashboard stats (total patients, visits today, department breakdown)
+      responses:
+        "200":
+          description: Kiosk statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KioskStats"
+
+  /openai/conversations:
+    get:
+      operationId: listOpenaiConversations
+      tags: [openai]
+      summary: List all conversations
+      responses:
+        "200":
+          description: List of conversations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OpenaiConversation"
+    post:
+      operationId: createOpenaiConversation
+      tags: [openai]
+      summary: Create a new conversation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OpenaiConversationInput"
+      responses:
+        "201":
+          description: Created conversation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenaiConversation"
+
+  /openai/conversations/{id}:
+    get:
+      operationId: getOpenaiConversation
+      tags: [openai]
+      summary: Get conversation with messages
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Conversation with messages
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenaiConversationWithMessages"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenaiError"
+    delete:
+      operationId: deleteOpenaiConversation
+      tags: [openai]
+      summary: Delete a conversation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenaiError"
+
+  /openai/conversations/{id}/messages:
+    get:
+      operationId: listOpenaiMessages
+      tags: [openai]
+      summary: List messages in a conversation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OpenaiMessage"
+    post:
+      operationId: sendOpenaiMessage
+      tags: [openai]
+      summary: Send a text message and receive a streaming text response
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OpenaiMessageInput"
+      responses:
+        "200":
+          description: SSE stream of assistant text chunks
+          content:
+            text/event-stream: {}
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +369,297 @@ components:
       required:
         - status
 
+    ApiError:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    Patient:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        age:
+          type: integer
+        gender:
+          type: string
+        phone:
+          type: string
+        insuranceId:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - age
+        - gender
+        - phone
+        - insuranceId
+        - createdAt
+
+    PatientInput:
+      type: object
+      properties:
+        name:
+          type: string
+        age:
+          type: integer
+        gender:
+          type: string
+        phone:
+          type: string
+        insuranceId:
+          type: string
+      required:
+        - name
+        - age
+        - gender
+        - phone
+
+    Visit:
+      type: object
+      properties:
+        id:
+          type: integer
+        patientId:
+          type: integer
+        symptoms:
+          type: string
+        suggestedDepartment:
+          type: string
+        insuranceStatus:
+          type: string
+        chatSummary:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - patientId
+        - symptoms
+        - suggestedDepartment
+        - insuranceStatus
+        - chatSummary
+        - createdAt
+
+    VisitInput:
+      type: object
+      properties:
+        patientId:
+          type: integer
+        symptoms:
+          type: string
+        suggestedDepartment:
+          type: string
+        insuranceStatus:
+          type: string
+        chatSummary:
+          type: string
+      required:
+        - patientId
+        - symptoms
+        - suggestedDepartment
+        - insuranceStatus
+
+    VisitWithPatient:
+      type: object
+      properties:
+        id:
+          type: integer
+        patientId:
+          type: integer
+        symptoms:
+          type: string
+        suggestedDepartment:
+          type: string
+        insuranceStatus:
+          type: string
+        chatSummary:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        patient:
+          $ref: "#/components/schemas/Patient"
+      required:
+        - id
+        - patientId
+        - symptoms
+        - suggestedDepartment
+        - insuranceStatus
+        - chatSummary
+        - createdAt
+        - patient
+
+    IdTextInput:
+      type: object
+      properties:
+        idText:
+          type: string
+      required:
+        - idText
+
+    ExtractedPatient:
+      type: object
+      properties:
+        name:
+          type: string
+        age:
+          type: ["integer", "null"]
+        gender:
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
+        insuranceId:
+          type: ["string", "null"]
+      required:
+        - name
+        - age
+        - gender
+        - phone
+        - insuranceId
+
+    InsuranceCheckInput:
+      type: object
+      properties:
+        insuranceId:
+          type: string
+      required:
+        - insuranceId
+
+    InsuranceCheckResult:
+      type: object
+      properties:
+        insuranceId:
+          type: string
+        status:
+          type: string
+        details:
+          type: string
+      required:
+        - insuranceId
+        - status
+        - details
+
+    KioskStats:
+      type: object
+      properties:
+        totalPatients:
+          type: integer
+        visitsToday:
+          type: integer
+        totalVisits:
+          type: integer
+        departmentBreakdown:
+          type: array
+          items:
+            $ref: "#/components/schemas/DepartmentCount"
+        recentVisits:
+          type: array
+          items:
+            $ref: "#/components/schemas/VisitWithPatient"
+      required:
+        - totalPatients
+        - visitsToday
+        - totalVisits
+        - departmentBreakdown
+        - recentVisits
+
+    DepartmentCount:
+      type: object
+      properties:
+        department:
+          type: string
+        count:
+          type: integer
+      required:
+        - department
+        - count
+
+    OpenaiConversation:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - title
+        - createdAt
+
+    OpenaiMessage:
+      type: object
+      properties:
+        id:
+          type: integer
+        conversationId:
+          type: integer
+        role:
+          type: string
+        content:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - conversationId
+        - role
+        - content
+        - createdAt
+
+    OpenaiConversationInput:
+      type: object
+      properties:
+        title:
+          type: string
+      required:
+        - title
+
+    OpenaiMessageInput:
+      type: object
+      properties:
+        content:
+          type: string
+      required:
+        - content
+
+    OpenaiConversationWithMessages:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/OpenaiMessage"
+      required:
+        - id
+        - title
+        - createdAt
+        - messages
+
+    OpenaiError:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error

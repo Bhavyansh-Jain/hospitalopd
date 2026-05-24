@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Zero-Wait OPD Kiosk"
+version = "1.0.0"
+id = "artifacts/opd-kiosk"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 20234
+
+[services.development]
+run = "pnpm --filter @workspace/opd-kiosk run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/opd-kiosk", "run", "build" ]
+publicDir = "artifacts/opd-kiosk/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "20234"
+BASE_PATH = "/"

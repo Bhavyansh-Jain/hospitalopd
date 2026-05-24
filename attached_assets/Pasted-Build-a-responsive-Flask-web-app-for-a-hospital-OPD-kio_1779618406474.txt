@@ -1,0 +1,80 @@
+Build a responsive Flask web app for a hospital OPD kiosk called "Zero-Wait OPD Kiosk" with the following:
+
+Backend:
+- Python Flask
+- SQLite database (file: database.db)
+- Standard Flask project structure:
+  - app.py as main entry point
+  - templates/ for HTML files
+  - static/ for CSS, JS, images
+  - requirements.txt with all dependencies
+- The app must run locally with:
+    pip install -r requirements.txt
+    python app.py
+
+Database tables:
+1. patients
+   - id (primary key)
+   - name
+   - age
+   - gender
+   - phone
+   - insurance_id
+   - created_at
+
+2. visits
+   - id (primary key)
+   - patient_id (foreign key to patients)
+   - symptoms (text)
+   - suggested_department (text)
+   - insurance_status (text: active/inactive/unknown)
+   - created_at
+
+Core features:
+1. ID Scan & Auto-Extract
+   - Page: /scan-id
+   - Upload or paste ID text (simulate ID scan)
+   - Use AI to extract: name, age, gender, phone, insurance_id
+   - Auto-fill patient form with extracted data
+
+2. AI Agent Chat for Routing + Symptom Analysis
+   - Page: /chat
+   - Simple chat interface where patient asks questions or describes symptoms
+   - Use AI to:
+     - Route to correct department (e.g., cardiology, dermatology)
+     - Ask follow-up questions for better symptom analysis
+   - Show suggested department and summary
+
+3. Save Clinical Data
+   - Page: /save-visit
+   - Save patient + visit data to SQLite in structured format
+   - Show confirmation with visit summary
+
+4. Check Insurance
+   - Page: /check-insurance
+   - Input insurance_id
+   - Use AI or mock logic to verify insurance status (active/inactive/unknown)
+   - Show result clearly
+
+UI requirements:
+- Sleek, modern, kiosk-style design
+- Fully responsive (mobile, tablet, desktop)
+- Dark mode toggle (light/dark theme using CSS variables)
+- Clean forms, large buttons for kiosk use
+- Chat interface for the AI agent
+
+AI integration:
+- Use an AI API (e.g., Gemini or any available model) to:
+  - Extract patient details from ID text
+  - Power the chat agent for routing + symptom analysis
+- If no real API is available, implement mock AI logic that simulates extraction and chat responses
+
+Authentication:
+- No user login required (this is a kiosk app)
+- Keep it simple and fast for demo
+
+Deliver a working, demo-ready Flask app that:
+- Runs with `flask run`
+- Has all 4 core features working end-to-end
+- Has a polished UI with dark mode
+- Can be shown in a browser for judging
